@@ -7,5 +7,6 @@
 3. Go to portfolio.lvh.me → already logged in (didn't log in there)
 4. Log out on trade.lvh.me
 5. Reload portfolio.lvh.me → logged out too
+6. Auto refresh: /refresh re-sets the same cookie on a timer
 
 ## Split the
