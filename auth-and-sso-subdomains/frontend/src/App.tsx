@@ -1,10 +1,7 @@
 type User = { email: string };
 
 import { useEffect, useState } from "react";
-
-const TIMER_DURATION = 1000 * 60 * 3.5; // 3.5 mins
-
-const API_URL = "http://api.lvh.me:4000";
+import { apiFetch } from "./api-fetch";
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -12,9 +9,7 @@ function App() {
 
   async function checkMe() {
     try {
-      const response = await fetch(`${API_URL}/me`, {
-        credentials: "include",
-      });
+      const response = await apiFetch("/me");
       if (response.ok) {
         const data = await response.json();
         setUser(data.user);
@@ -31,23 +26,11 @@ function App() {
     checkMe();
   }, []);
 
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      fetch(`${API_URL}/refresh`, {
-        method: "POST",
-        credentials: "include",
-      });
-    }, TIMER_DURATION);
-
-    return () => clearInterval(intervalId);
-  }, []);
-
   async function login() {
-    const response = await fetch(`${API_URL}/login`, {
+    const response = await apiFetch("/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: "user@example.com" }),
-      credentials: "include",
     });
 
     const data = await response.json();
@@ -55,10 +38,9 @@ function App() {
   }
 
   async function logout() {
-    const response = await fetch(`${API_URL}/logout`, {
+    const response = await apiFetch("/logout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",
     });
 
     if (response.ok) {

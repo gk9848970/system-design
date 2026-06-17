@@ -22,6 +22,16 @@ const SESSION_COOKIE_OPTIONS: CookieOptions = {
   maxAge: 1000 * 60 * 4, // 4 mins
 };
 
+const REFRESH_COOKIE = "refresh";
+const REFRESH_COOKIE_OPTIONS: CookieOptions = {
+  httpOnly: true,
+  domain: "lvh.me", // Host
+  sameSite: "lax", // Cross-site top-level navigation attaches cookies, But not on background fetches
+  secure: false, // For local development, In Prod we will have https so can flip to true
+  path: "/refresh", // Route path
+  maxAge: 1000 * 60 * 60 * 24 * 7, // 7 Days
+};
+
 const app = express();
 
 app.use(express.json());
@@ -40,19 +50,25 @@ app.use(
 app.post("/login", (req: Request, res: Response) => {
   const email = req.body.email as string | undefined;
 
+  if (!email) return res.status(400).json({ error: "email required" });
+
   res.cookie(SESSION_COOKIE, email, SESSION_COOKIE_OPTIONS);
+  res.cookie(REFRESH_COOKIE, email, REFRESH_COOKIE_OPTIONS);
+
   res.json({ ok: true, user: { email } });
 });
 
 app.post("/logout", (_req: Request, res: Response) => {
   res.clearCookie(SESSION_COOKIE, SESSION_COOKIE_OPTIONS);
+  res.clearCookie(REFRESH_COOKIE, REFRESH_COOKIE_OPTIONS);
+
   return res.json({ ok: true });
 });
 
 app.post("/refresh", (req: Request, res: Response) => {
-  const email = req.cookies[SESSION_COOKIE] as string | undefined;
+  const email = req.cookies[REFRESH_COOKIE] as string | undefined;
   if (!email) {
-    return res.status(401).json({ error: "no session to refresh" });
+    return res.status(401).json({ error: "no refresh token valid" });
   }
   res.cookie(SESSION_COOKIE, email, SESSION_COOKIE_OPTIONS);
   return res.json({ ok: true });
@@ -61,10 +77,9 @@ app.post("/refresh", (req: Request, res: Response) => {
 app.get("/me", (req: Request, res: Response) => {
   const email = req.cookies[SESSION_COOKIE] as string | undefined;
   if (email) {
-    res.json({ user: { email } });
-  } else {
-    res.status(401).json({ error: "not authenticated" });
+    return res.json({ user: { email } });
   }
+  return res.status(401).json({ error: "not authenticated" });
 });
 
 app.listen(4000, () => console.log("auth server on http://api.lvh.me:4000"));
