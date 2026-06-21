@@ -42,13 +42,16 @@ wss.on("connection", (ws) => {
     ws.send(JSON.stringify(data));
   }, 500);
 
+  ws.on("message", (raw) => {
+    const msg = JSON.parse(raw.toString());
+    if (msg.type === "ping") {
+      if (paused) return;
+      ws.send(JSON.stringify({ type: "pong" }));
+    }
+  });
+
   ws.on("close", () => {
     console.log("[server] client disconnected");
-    // TODO 3: stop the interval here.
-    //   Before you write it — reason about why: if you DON'T clear it, what
-    //   keeps happening after the client is gone, and what does ws.send() do
-    //   on a closed socket? What breaks first — loudly, or silently?
-    //
     clearInterval(intervalId);
   });
 

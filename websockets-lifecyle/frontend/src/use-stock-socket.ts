@@ -4,6 +4,8 @@ type Quote = { symbol: string; price: number; time: number };
 
 const BASE_DELAY = 1000 * 1;
 const MAX_DELAY = 1000 * 60;
+const PING_INTERVAL = 1000 * 5;
+const PONG_TIMEOUT = 1000 * 3;
 
 export function useStockSocket(url: string) {
   const [quote, setQuote] = useState<Quote | null>(null);
@@ -14,8 +16,30 @@ export function useStockSocket(url: string) {
   const attemptsRef = useRef(0);
   const retryTimerRef = useRef(null);
 
+  const pingTimerRef = useRef(null);
+  const pongTimerRef = useRef(null);
+
   useEffect(() => {
     let closedByUs = false;
+
+    function startHeartbeat() {
+      pingTimerRef.current = setInterval(() => {
+        socketRef.current?.send(
+          JSON.stringify({
+            type: "ping",
+          }),
+        );
+
+        pongTimerRef.current = setTimeout(() => {
+          socketRef.current?.close();
+        }, PONG_TIMEOUT);
+      }, PING_INTERVAL);
+    }
+
+    function stopHeartbeat() {
+      clearInterval(pingTimerRef.current);
+      clearTimeout(pongTimerRef.current);
+    }
 
     function scheduleReconnect() {
       // Random number between 1 - 10 -> Math.floor(Math.random() * 10) + 1
@@ -38,11 +62,16 @@ export function useStockSocket(url: string) {
 
       socket.onopen = () => {
         setStatus("open");
-        attemptsRef.current = 0;
+        startHeartbeat();
       };
 
       socket.onmessage = (event) => {
-        setQuote(JSON.parse(event.data));
+        attemptsRef.current = 0;
+        clearTimeout(pongTimerRef.current);
+
+        const parsedMsg = JSON.parse(event.data);
+        if (parsedMsg.type === "pong") return;
+        setQuote(parsedMsg);
       };
 
       socket.onerror = (err) => console.log("ws error", err);
@@ -50,6 +79,7 @@ export function useStockSocket(url: string) {
       socket.onclose = (event) => {
         console.log("close", event.code, event.wasClean);
         setStatus("closed");
+        stopHeartbeat();
 
         if (!closedByUs) scheduleReconnect();
       };
@@ -61,6 +91,7 @@ export function useStockSocket(url: string) {
       closedByUs = true;
       clearTimeout(retryTimerRef.current);
       socketRef.current?.close();
+      stopHeartbeat();
     };
   }, [url]);
 
