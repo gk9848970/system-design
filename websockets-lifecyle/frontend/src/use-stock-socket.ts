@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-type Quote = { symbol: string; price: number; time: number };
+export type Quote = { symbol: string; price: number; time: number };
 
 const BASE_DELAY = 1000 * 1;
 const MAX_DELAY = 1000 * 60;
@@ -8,7 +8,7 @@ const PING_INTERVAL = 1000 * 5;
 const PONG_TIMEOUT = 1000 * 3;
 
 export function useStockSocket(url: string) {
-  const [quote, setQuote] = useState<Quote | null>(null);
+  const [quotes, setQuotes] = useState<Record<string, Quote | null>>({});
   const [status, setStatus] = useState<"connecting" | "open" | "closed">(
     "connecting",
   );
@@ -18,6 +18,28 @@ export function useStockSocket(url: string) {
 
   const pingTimerRef = useRef(null);
   const pongTimerRef = useRef(null);
+
+  const subscriptionsRef = useRef<Set<string>>(new Set());
+
+  function subscribe(symbol: string) {
+    subscriptionsRef.current.add(symbol);
+    const currSocket = socketRef.current;
+    if (currSocket && currSocket.readyState === WebSocket.OPEN) {
+      const payload = { symbol, type: "subscribe" };
+      currSocket.send(JSON.stringify(payload));
+    }
+  }
+
+  function unsubscribe(symbol: string) {
+    subscriptionsRef.current.delete(symbol);
+    const currSocket = socketRef.current;
+    if (currSocket && currSocket.readyState === WebSocket.OPEN) {
+      const payload = { symbol, type: "unsubscribe" };
+      currSocket.send(JSON.stringify(payload));
+    }
+
+    setQuotes((prev) => ({ ...prev, [symbol]: null }));
+  }
 
   useEffect(() => {
     let closedByUs = false;
@@ -63,6 +85,9 @@ export function useStockSocket(url: string) {
       socket.onopen = () => {
         setStatus("open");
         startHeartbeat();
+        subscriptionsRef.current.forEach((symbol) => {
+          socket.send(JSON.stringify({ type: "subscribe", symbol }));
+        });
       };
 
       socket.onmessage = (event) => {
@@ -71,7 +96,7 @@ export function useStockSocket(url: string) {
 
         const parsedMsg = JSON.parse(event.data);
         if (parsedMsg.type === "pong") return;
-        setQuote(parsedMsg);
+        setQuotes((prev) => ({ ...prev, [parsedMsg.symbol]: parsedMsg }));
       };
 
       socket.onerror = (err) => console.log("ws error", err);
@@ -95,5 +120,5 @@ export function useStockSocket(url: string) {
     };
   }, [url]);
 
-  return { quote, status };
+  return { quotes, status, subscribe, unsubscribe };
 }
