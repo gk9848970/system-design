@@ -1,40 +1,34 @@
 # Checkpoints
 
-## WebSocket Lifecycle
+## One Shared WebSocket Across Tabs
 
-### Mock server + dumb hook
-1. Build Node ws server: random-walk one price, send every 500ms on connect, clearInterval on close
-2. Build useStockSocket: open socket in effect, onmessage → JSON.parse → setQuote; close + null ref on cleanup
+### Leader election (Web Locks)
 
-### Loud death → reconnect
+1. Naive client opens a socket per tab → 4 tabs = 4 sockets in Network→WS, server logs "connected" 4× — the wall
+2. 4 tabs → one LEADER; kill it → a survivor flips (watch Application→Web Locks)
 
-1. Kill server, watch screen freeze + onclose fire (1006, not onerror); confirm restart does nothing
-3. Wrap connect in a connect() fn, call it from onclose to rebuild a new socket
-3. Add closedByUs flag (set in cleanup) so own-unmount doesn't trigger reconnec
+### Gate socket on leadership
 
-### Backoff + jitter
+1. Socket in leader-only effect → Network→WS shows 1 socket, server logs "connected" once
+2. New wall: followers' ticks empty — data lives only in leader's tab
 
-1. Replace instant retry: schedule connect() via setTimeout after a computed delay
-Delay = BASE * 2**attempts, cap at MAX, then * Math.random() (full jitter); store timer in ref, clear on teardown
-2. Increment attempts per retry; reset to 0 on success — confirm logs show doubling-with-scatter
+### Tick fan-out (BroadcastChannel)
 
-### Half-open → heartbeat
+1. Leader posts each tick on "ticks" channel; all tabs listen + render
+2. No self-echo → leader posts and locally setTicks
+3. Verify: 4 tabs, 1 socket, all four render
 
-1. Add pause toggle to server (freeze prices and pongs); confirm pausing freezes screen with zero client events
-2. Server: on {type:"ping"} reply {type:"pong"} (skip while paused)
-3. Client startHeartbeat: ping every 5s + and arm 3s watchdog setTimeout; reset watchdog on any message, fire → socket.close()
-3. Call stopHeartbeat() in onclose; move attempts=0 reset from onopen to onmessage
+### Subscription fan-in (union)
 
-### Resubscription
+1. Followers announce wants to leader over "subs" channel; leader folds into union, subscribes union on the one socket
+2. Split: socket subscribes the union; each tab renders only its own wants
+3. requestSubscription: leader folds directly, follower posts to channel
+4. Per-tab mySubscriptions drives render, union never rendered
+5. Union is a ref (live, read in onopen replay); state mirror only for re-render
 
-1. Subscribe only on user action (not on open) → kill + reconnect → watch symbols go silently dead (new socket = blank, status still open)
-2. Client holds durable intent in subscriptionsRef Set; server's per-socket sub-set is a disposable cache that dies with the socket
-3. Fix: onopen replays the whole subscriptionsRef set onto the fresh socket — one path for first-connect & reconnect ("on open, assert what I want")
-4. Verify: server re-logs every sub on reconnect
+### Handoff replay (union survives death)
 
-### Multi-symbol
-
-1. Server: module-level PRICES map (shared truth) + per-socket subscriptions Set; send only subscribed symbols
-2. Client: quotes becomes a symbol → quote map, onmessage merges functionally ({...prev, [symbol]: msg})
-3. Lifted subscribe/unsubscribe read the socket from ref at call-time (never capture an instance)
-4. Verify: subscribe two, unsub one, kill + reconnect → only the remaining two replay
+1. Wall: union only in leader's ref → kill leader → new ref empty → zero subscribes → all ticks freeze
+2. One shared store (localStorage), leader sole writer (no clobber) — rejected N per-tab copies
+3. Persist in subscribe/unsubscribe; new leader readUnion() in onopen before replay (only moment with current union + open socket)
+4. Verify: kill leader → both symbols resume; <1s gap remains (intrinsic to arch-a; SharedWorker has none)

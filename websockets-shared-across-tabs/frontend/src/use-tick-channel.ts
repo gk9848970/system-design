@@ -29,6 +29,8 @@ export function useTickChannel(tabId: string) {
   ) {
     console.log("Posting the tick from leader tab with ID", leaderTabID);
     chanRef.current?.postMessage({ symbol, price });
+
+    // Leader needs to update it's own ticks, It can't broadcast event to itself
     setTicks((prev) => ({ ...prev, [symbol]: price }));
   }, []);
 

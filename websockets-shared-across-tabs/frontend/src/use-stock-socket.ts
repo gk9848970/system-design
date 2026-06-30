@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { readUnion, writeUnion } from "./union";
 
 export function useStockSocket(
   url: string,
@@ -17,6 +18,8 @@ export function useStockSocket(
       const payload = { symbol: sym, type: "subscribe" };
       ws.send(JSON.stringify(payload));
     }
+
+    writeUnion(subscriptionsRef.current);
   }, []);
 
   const unsubscribe = useCallback((sym: string) => {
@@ -26,6 +29,8 @@ export function useStockSocket(
       const payload = { symbol: sym, type: "unsubscribe" };
       ws.send(JSON.stringify(payload));
     }
+
+    writeUnion(subscriptionsRef.current);
   }, []);
 
   useEffect(() => {
@@ -38,7 +43,8 @@ export function useStockSocket(
     ws.onopen = () => {
       setStatus("open");
 
-      const symbols = subscriptionsRef.current;
+      const symbols = readUnion();
+      console.log(symbols);
       for (const sym of symbols) {
         ws.send(JSON.stringify({ type: "subscribe", symbol: sym }));
       }
