@@ -1,14 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { startTickGenerator, SYMBOLS } from "./tick-generator";
-import { Row } from "./row";
+import { StoreRow } from "./store-row";
+import { applyUpdates } from "./price-store";
 
-const initialPrices: Record<string, number> = Object.fromEntries(
-  SYMBOLS.map((s) => [s, 0]),
-);
-
-export const NaiveTable = () => {
-  const [prices, setPrices] = useState(initialPrices);
-
+export const StoreTable = () => {
   useEffect(() => {
     let buffer: Record<string, number> = {};
 
@@ -19,7 +14,7 @@ export const NaiveTable = () => {
     const flushId = setInterval(() => {
       const next = buffer;
       buffer = {};
-      setPrices((prev) => ({ ...prev, ...next }));
+      applyUpdates(next);
     }, 16);
 
     return () => {
@@ -31,7 +26,7 @@ export const NaiveTable = () => {
   return (
     <div>
       {SYMBOLS.map((s) => (
-        <Row key={s} symbol={s} price={prices[s]} />
+        <StoreRow key={s} symbol={s} />
       ))}
     </div>
   );

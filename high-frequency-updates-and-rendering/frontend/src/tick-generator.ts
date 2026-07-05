@@ -1,8 +1,8 @@
 import type { Tick } from "./types";
 
 export const SYMBOLS: string[] = Array.from(
-  { length: 500 },
-  (_, i) => `SYM${i.toString().padStart(3, "0")}`,
+  { length: 50000 },
+  (_, i) => `SYM${i.toString().padStart(5, "0")}`,
 );
 
 const prices = new Map<string, number>(

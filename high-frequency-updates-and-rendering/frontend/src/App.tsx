@@ -1,9 +1,9 @@
-import { NaiveTable } from "./naive-table";
+import { VirtualisedTable } from "./virtualised-table";
 
 function App() {
   return (
     <div>
-      <NaiveTable />
+      <VirtualisedTable />
     </div>
   );
 }
